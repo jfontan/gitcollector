@@ -23,5 +23,5 @@ jobs:
     - name: Test
       run: |
         make test-coverage
-      with:
-        env: ${{ secrets.GITHUB_TOKEN }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
