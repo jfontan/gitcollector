@@ -7,11 +7,10 @@ import (
 
 // WorkerPoolOpts are configuration options for a JobScheduler.
 type WorkerPoolOpts struct {
-	SchedulerCapacity int
-	WaitJobTimeout    time.Duration
-	WaitNewJobTimeout time.Duration
-	NotWaitNewJobs    bool
-	Metrics           MetricsCollector
+	SchedulerCapacity  int
+	ScheduleJobTimeout time.Duration
+	NotWaitNewJobs     bool
+	Metrics            MetricsCollector
 }
 
 // WorkerPool holds a pool of workers to process Jobs.
@@ -107,12 +106,8 @@ func (wp *WorkerPool) remove(n int) {
 	wg.Wait()
 }
 
-// Wait waits for the workers to finish. A worker will finish when the queue to
-// retrieve jobs from is closed.
+// Wait waits for the workers to finish.
 func (wp *WorkerPool) Wait() {
-	<-wp.resize
-	defer func() { wp.resize <- struct{}{} }()
-
 	wp.wg.Wait()
 	wp.workers = nil
 	wp.opts.Metrics.Stop(false)

@@ -14,6 +14,7 @@ import (
 	"github.com/src-d/gitcollector/downloader"
 	"github.com/src-d/gitcollector/library"
 	"github.com/src-d/gitcollector/metrics"
+	"github.com/src-d/gitcollector/provider"
 	"github.com/src-d/go-borges/siva"
 	"gopkg.in/src-d/go-billy.v4/osfs"
 	"gopkg.in/src-d/go-cli.v0"
@@ -30,7 +31,9 @@ type DownloadCmd struct {
 	Workers         int    `long:"workers" description:"number of workers, default to GOMAXPROCS" env:"GITCOLLECTOR_WORKERS"`
 	HalfCPU         bool   `long:"half-cpu" description:"set the number of workers to half of the set workers" env:"GITCOLLECTOR_HALF_CPU"`
 	NotAllowUpdates bool   `long:"no-updates" description:"don't allow updates on already downloaded repositories" env:"GITCOLLECTOR_NO_UPDATES"`
+	NoForks         bool   `long:"no-forks" description:"github forked repositories will not be downloaded" env:"GITCOLLECTOR_NO_FORKS"`
 	Orgs            string `long:"orgs" env:"GITHUB_ORGANIZATIONS" description:"list of github organization names separated by comma" required:"true"`
+	ExcludedRepos   string `long:"excluded-repos" env:"GITCOLLECTOR_EXCLUDED_REPOS" description:"list of repos to exclude separated by comma" required:"false"`
 	Token           string `long:"token" env:"GITHUB_TOKEN" description:"github token"`
 	MetricsDBURI    string `long:"metrics-db" env:"GITCOLLECTOR_METRICS_DB_URI" description:"uri to a database where metrics will be sent"`
 	MetricsDBTable  string `long:"metrics-db-table" env:"GITCOLLECTOR_METRICS_DB_TABLE" default:"gitcollector_metrics" description:"table name where the metrics will be added"`
@@ -41,23 +44,45 @@ type DownloadCmd struct {
 func (c *DownloadCmd) Execute(args []string) error {
 	start := time.Now()
 
-	orgs := strings.Split(c.Orgs, ",")
+	if c.Orgs == "" {
+		log.Warningf("no organizations found, at least one " +
+			"organization must be provided")
+
+		return nil
+	}
+
+	o := strings.Split(c.Orgs, ",")
+	orgs := make([]string, 0, len(o))
+	for _, org := range o {
+		orgs = append(orgs, strings.ToLower(org))
+	}
+
+	ers := strings.Split(c.ExcludedRepos, ",")
+	excludedRepos := make([]string, 0, len(ers))
+	for _, er := range ers {
+		excludedRepos = append(excludedRepos, er)
+	}
 
 	info, err := os.Stat(c.LibPath)
-	check(err, "wrong path to locate the library")
+	if err != nil {
+		log.Errorf(err, "wrong path to locate the library")
+		return err
+	}
 
 	if !info.IsDir() {
-		check(
-			fmt.Errorf("%s isn't a directory", c.LibPath),
-			"wrong path to locate the library",
-		)
+		err := fmt.Errorf("%s isn't a directory", c.LibPath)
+		log.Errorf(err, "wrong path to locate the library")
+		return err
 	}
 
 	fs := osfs.New(c.LibPath)
 
 	tmpPath, err := ioutil.TempDir(
 		c.TmpPath, "gitcollector-downloader")
-	check(err, "unable to create temporal directory")
+	if err != nil {
+		log.Errorf(err, "unable to create temporal directory")
+		return err
+	}
 	defer func() {
 		if err := os.RemoveAll(tmpPath); err != nil {
 			log.Warningf(
@@ -70,12 +95,15 @@ func (c *DownloadCmd) Execute(args []string) error {
 	log.Debugf("temporal dir: %s", tmpPath)
 	temp := osfs.New(tmpPath)
 
-	lib, err := siva.NewLibrary("test", fs, siva.LibraryOptions{
+	lib, err := siva.NewLibrary("test", fs, &siva.LibraryOptions{
 		Bucket:        2,
 		Transactional: true,
 		TempFS:        temp,
 	})
-	check(err, "unable to create borges siva library")
+	if err != nil {
+		log.Errorf(err, "unable to create borges siva library")
+		return err
+	}
 
 	authTokens := map[string]string{}
 	if c.Token != "" {
@@ -111,12 +139,16 @@ func (c *DownloadCmd) Execute(args []string) error {
 
 	var mc gitcollector.MetricsCollector
 	if c.MetricsDBURI != "" {
-		mc = setupMetrics(
+		mc, err = setupMetrics(
 			c.MetricsDBURI,
 			c.MetricsDBTable,
 			orgs,
 			c.MetricsSync,
 		)
+		if err != nil {
+			log.Errorf(err, "failed to setup metrics")
+			return err
+		}
 
 		log.Debugf("metrics collection activated: sync timeout %d",
 			c.MetricsSync)
@@ -135,7 +167,7 @@ func (c *DownloadCmd) Execute(args []string) error {
 	wp.Run()
 	log.Debugf("worker pool is running")
 
-	go runGHOrgProviders(log.New(nil), orgs, c.Token, download)
+	go runGHOrgProviders(log.New(nil), orgs, excludedRepos, c.Token, download, c.NoForks)
 
 	wp.Wait()
 	log.Debugf("worker pool stopped successfully")
@@ -145,20 +177,16 @@ func (c *DownloadCmd) Execute(args []string) error {
 	return nil
 }
 
-func check(err error, message string) {
-	if err != nil {
-		log.Errorf(err, message)
-		os.Exit(1)
-	}
-}
-
 func setupMetrics(
 	uri, table string,
 	orgs []string,
 	metricSync int64,
-) gitcollector.MetricsCollector {
+) (gitcollector.MetricsCollector, error) {
 	db, err := metrics.PrepareDB(uri, table, orgs)
-	check(err, "metrics database")
+	if err != nil {
+		log.Errorf(err, "metrics database")
+		return nil, err
+	}
 
 	mcs := make(map[string]*metrics.Collector, len(orgs))
 	for _, org := range orgs {
@@ -171,28 +199,29 @@ func setupMetrics(
 		mcs[org] = mc
 	}
 
-	return metrics.NewCollectorByOrg(mcs)
+	return metrics.NewCollectorByOrg(mcs), nil
 }
 
 func runGHOrgProviders(
 	logger log.Logger,
 	orgs []string,
+	excludedRepos []string,
 	token string,
 	download chan gitcollector.Job,
+	skipForks bool,
 ) {
 	var wg sync.WaitGroup
 	wg.Add(len(orgs))
 	for _, o := range orgs {
 		org := o
-		p := discovery.NewGHProvider(
+		p := provider.NewGitHubOrg(
+			org,
+			excludedRepos,
+			token,
 			download,
-			discovery.NewGHOrgReposIter(
-				org,
-				&discovery.GHReposIterOpts{
-					AuthToken: token,
-				},
-			),
-			&discovery.GHProviderOpts{},
+			&discovery.GitHubOpts{
+				SkipForks: skipForks,
+			},
 		)
 
 		go func() {

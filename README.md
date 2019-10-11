@@ -1,4 +1,4 @@
-# gitcollector [![GitHub version](https://badge.fury.io/gh/src-d%2Fgitcollector.svg)](https://github.com/src-d/gitcollector/releases) [![Build Status](https://travis-ci.org/src-d/gitcollector.svg?branch=master)](https://travis-ci.org/src-d/gitcollector) [![codecov](https://codecov.io/gh/src-d/gitcollector/branch/master/graph/badge.svg)](https://codecov.io/gh/src-d/gitcollector) [![GoDoc](https://godoc.org/gopkg.in/src-d/gitcollector.v0?status.svg)](https://godoc.org/gopkg.in/src-d/gitcollector.v0) [![Go Report Card](https://goreportcard.com/badge/github.com/src-d/gitcollector)](https://goreportcard.com/report/github.com/src-d/gitcollector)
+# gitcollector [![GitHub version](https://badge.fury.io/gh/src-d%2Fgitcollector.svg)](https://github.com/src-d/gitcollector/releases) [![Build Status](https://travis-ci.com/src-d/gitcollector.svg?branch=master)](https://travis-ci.com/src-d/gitcollector) [![codecov](https://codecov.io/gh/src-d/gitcollector/branch/master/graph/badge.svg)](https://codecov.io/gh/src-d/gitcollector) [![GoDoc](https://godoc.org/gopkg.in/src-d/gitcollector.v0?status.svg)](https://godoc.org/gopkg.in/src-d/gitcollector.v0) [![Go Report Card](https://goreportcard.com/badge/github.com/src-d/gitcollector)](https://goreportcard.com/report/github.com/src-d/gitcollector)
 
 **gitcollector** collects and stores git repositories.
 
@@ -9,7 +9,7 @@ storage space and keeping repositories up-to-date.
 
 ## Status
 
-The project is currently in **beta** stage.
+The project is in a preliminary stable stage and under active development.
 
 ## Storing repositories using rooted repositories
 
@@ -31,7 +31,7 @@ Rooted repositories have a few particularities that you should know to work with
 
 gitcollector entry point usage is done through the subcommand `download` (at this time is the only subcommand):
 
-```
+```txt
 Usage:
   gitcollector [OPTIONS] download [download-OPTIONS]
 
@@ -43,8 +43,11 @@ Help Options:
           --bucket=                              library bucketization level (default: 2) [$GITCOLLECTOR_LIBRARY_BUCKET]
           --tmp=                                 directory to place generated temporal files (default: /tmp) [$GITCOLLECTOR_TMP]
           --workers=                             number of workers, default to GOMAXPROCS [$GITCOLLECTOR_WORKERS]
+          --half-cpu                             set the number of workers to half of the set workers [$GITCOLLECTOR_HALF_CPU]
           --no-updates                           don't allow updates on already downloaded repositories [$GITCOLLECTOR_NO_UPDATES]
+          --no-forks                             github forked repositories will not be downloaded [$GITCOLLECTOR_NO_FORKS]
           --orgs=                                list of github organization names separated by comma [$GITHUB_ORGANIZATIONS]
+          --excluded-repos=                      list of repos to exclude separated by comma [$GITCOLLECTOR_EXCLUDED_REPOS]
           --token=                               github token [$GITHUB_TOKEN]
           --metrics-db=                          uri to a database where metrics will be sent [$GITCOLLECTOR_METRICS_DB_URI]
           --metrics-db-table=                    table name where the metrics will be added (default: gitcollector_metrics) [$GITCOLLECTOR_METRICS_DB_TABLE]
@@ -76,7 +79,7 @@ docker run --rm --name gitcollector_1 \
 -e "GITHUB_ORGANIZATIONS=src-d,bblfsh" \
 -e "GITHUB_TOKEN=foo" \
 -v /path/to/repos/directory:/library \
-gitcollector:latest
+srcd/gitcollector:latest
 ```
 
 Note that you must mount a local directory into the specific container path shown in `-v /path/to/repos/directory:/library`. This directory is where the repositories will be downloaded into rooted repositories in siva files format.

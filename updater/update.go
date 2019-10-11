@@ -106,7 +106,10 @@ func Update(ctx context.Context, job *library.Job) error {
 	return nil
 }
 
-func remotesToUpdate(repo borges.Repository, remote string) ([]*git.Remote, error) {
+func remotesToUpdate(
+	repo borges.Repository,
+	remote string,
+) ([]*git.Remote, error) {
 	var (
 		remotes []*git.Remote
 		err     error
@@ -160,8 +163,16 @@ func updateRepository(
 			return err
 		}
 
+		name := remote.Config().Name
 		if err == git.NoErrAlreadyUpToDate {
 			alreadyUpdated++
+			logger.With(log.Fields{"remote": name}).
+				Debugf("already up to date")
+		}
+
+		if err == nil {
+			logger.With(log.Fields{"remote": name}).
+				Debugf("updated")
 		}
 	}
 

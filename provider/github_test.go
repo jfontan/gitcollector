@@ -1,4 +1,4 @@
-package discovery
+package provider
 
 import (
 	"strings"
@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/src-d/gitcollector"
+	"github.com/src-d/gitcollector/discovery"
 	"github.com/src-d/gitcollector/library"
-
 	"github.com/stretchr/testify/require"
 )
 
-func TestGHProvider(t *testing.T) {
+func TestGitHub(t *testing.T) {
 	var req = require.New(t)
 
 	const (
@@ -20,14 +20,12 @@ func TestGHProvider(t *testing.T) {
 	)
 
 	queue := make(chan gitcollector.Job, 50)
-	provider := NewGHProvider(
+	provider := NewGitHubOrg(
+		org,
+		[]string{},
+		"",
 		queue,
-		NewGHOrgReposIter(org, &GHReposIterOpts{
-			TimeNewRepos:   1 * time.Second,
-			ResultsPerPage: 100,
-			AuthToken:      "",
-		}),
-		&GHProviderOpts{
+		&discovery.GitHubOpts{
 			MaxJobBuffer: 50,
 		},
 	)
@@ -57,7 +55,7 @@ func TestGHProvider(t *testing.T) {
 	}()
 
 	err := provider.Start()
-	req.True(gitcollector.ErrProviderStopped.Is(err))
+	req.True(discovery.ErrDiscoveryStopped.Is(err))
 
 	close(queue)
 	<-done
