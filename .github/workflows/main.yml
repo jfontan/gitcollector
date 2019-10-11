@@ -11,17 +11,17 @@ jobs:
         os: [ubuntu-latest, macOS-latest]
 
     steps:
-      - name: Set up Go ${{ matrix.go_version }}
-        uses: actions/setup-go@v1
-        with:
-          go-version: ${{ matrix.go_version }}
-        id: go
+    - name: Set up Go ${{ matrix.go_version }}
+      uses: actions/setup-go@v1
+      with:
+        go-version: ${{ matrix.go_version }}
+      id: go
 
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v1
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v1
 
-      - name: Test
-        run: |
-          make test-coverage
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Test
+      run: |
+        make test-coverage
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
