@@ -28,4 +28,6 @@ jobs:
 
     - name: Upload coverage
       run: |
-        bash <(curl -s https://codecov.io/bash) -t ${{ secrets.CODECOV_TOKEN }} -f coverage.txt
+        bash <(curl -s https://codecov.io/bash) -f coverage.txt
+      env:
+        CODECOV_TOKEN: 8d59413b-e9ed-47d5-ba27-86b27e3f4bee
